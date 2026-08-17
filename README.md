@@ -1,30 +1,30 @@
 # ocr-shot 📸🔤
 
-Aplikasi **Live Text OCR Screenshot** modern untuk **Void Linux** (Wayland & X11). Mengambil tangkapan layar wilayah (*screenshot region*) dan mengekstraksi teks secara interaktif mirip seperti fitur **Apple Live Text**.
+A modern **Live Text OCR Screenshot** utility for **Void Linux** (Wayland & X11). It captures a screen region and interactively extracts text, featuring an **Apple Live Text**-like visual overlay.
 
-Dibuat khusus menggunakan **Python 3**, **PyQt6**, dan **Tesseract OCR** dengan dukungan bahasa **Indonesia (`ind`)**, **Inggris (`eng`)**, dan **Arab (`ara`)**.
+Built with **Python 3**, **PyQt6**, and **Tesseract OCR** with native support for **Indonesian (`ind`)**, **English (`eng`)**, and **Arabic (`ara`)**.
 
 ---
 
-## ✨ Fitur Utama
+## ✨ Features
 
-- 🔍 **Interactive Live Text Overlay**: Membekukan layar, memberi highlight kotak transparan di atas kata-kata yang terdeteksi, dan mengizinkan seleksi teks interaktif menggunakan mouse.
-- 🌐 **Multi-Language Combined Mode**: Mengenali Bahasa Indonesia (`ind`), Inggris (`eng`), dan Arab (`ara`) secara bersamaan dalam satu kali scan (`ind+eng+ara`).
-- ⚡ **Auto-Detect Display Server**: Mendukung lingkungan **Wayland** (`grim` + `slurp`) dan **X11** (`maim`, `xfce4-screenshooter`, `scrot`).
+- 🔍 **Interactive Live Text Overlay**: Freezes the screen, displays transparent highlight boxes over detected words, and allows interactive mouse text selection (*click & drag*).
+- 🌐 **Multi-Language Combined Mode**: Simultaneously scans Indonesian (`ind`), English (`eng`), and Arabic (`ara`) in a single pass (`ind+eng+ara`).
+- ⚡ **Auto-Detect Display Server**: Full compatibility with **Wayland** (`grim` + `slurp`) and **X11** (`maim`, `xfce4-screenshooter`, `scrot`).
 - 📋 **Floating Action Bar**:
-  - 📋 **Copy**: Menyalin teks terpilih ke clipboard (`wl-copy` / `xclip`).
-  - 🔍 **Search**: Langsung mencari teks terpilih di Google.
-  - 🌐 **Translate**: Mengubah teks terpilih di Google Translate.
-  - 🌐 **Selector Bahasa**: Ganti mode bahasa scan instan di UI overlay.
-- 💻 **Mode CLI & Export JSON**:
-  - `--cli`: Pemindaian cepat tanpa GUI langsung ke clipboard.
-  - `--json`: Mengekspor teks dan posisi koordinat bounding box $(x, y, w, h)$ kata ke format JSON terstruktur.
+  - 📋 **Copy**: Copy selected text to clipboard (`wl-copy` / `xclip`).
+  - 🔍 **Search**: Instantly search selected text on Google.
+  - 🌐 **Translate**: Translate selected text via Google Translate.
+  - 🌐 **Language Selector**: Switch OCR scan languages directly from the overlay.
+- 💻 **CLI & JSON Export Modes**:
+  - `--cli`: Fast non-GUI scan directly to clipboard.
+  - `--json`: Export full text and word bounding box coordinates $(x, y, w, h)$ in structured JSON format.
 
 ---
 
-## 📦 Instalasi Dependensi di Void Linux
+## 📦 Dependencies Installation on Void Linux
 
-Jalankan perintah berikut untuk menginstall dependensi yang dibutuhkan di Void Linux:
+Install all required dependencies using `xbps-install`:
 
 ```bash
 sudo xbps-install -S python3 python3-Pillow python3-PyQt6 tesseract tesseract-data-ind tesseract-data-eng tesseract-data-ara libnotify wl-clipboard xclip grim slurp maim
@@ -32,15 +32,15 @@ sudo xbps-install -S python3 python3-Pillow python3-PyQt6 tesseract tesseract-da
 
 ---
 
-## 🛠️ Instalasi Manual / Penggunaan Langsung
+## 🛠️ Manual Installation
 
-1. Clone repositori ini:
+1. Clone this repository:
    ```bash
    git clone https://github.com/Suyono-Sukorame/ocr-shot.git
    cd ocr-shot
    ```
 
-2. Berikan izin eksekusi dan salin ke `/usr/local/bin`:
+2. Make scripts executable and copy binaries & desktop entry:
    ```bash
    chmod +x ocr-shot ocr_gui.py
    sudo cp ocr-shot ocr_gui.py /usr/local/bin/
@@ -49,59 +49,59 @@ sudo xbps-install -S python3 python3-Pillow python3-PyQt6 tesseract tesseract-da
 
 ---
 
-## ❄️ Build Paket XBPS di Void Linux (`xbps-src`)
+## ❄️ Building XBPS Package for Void Linux (`xbps-src`)
 
-Jika Anda menggunakan repositori lokal `void-packages` untuk Void Linux:
+If you are using the `void-packages` source repository:
 
-1. Salin folder template paket ke repositori `void-packages`:
+1. Copy the package template into your `void-packages` directory:
    ```bash
    cp -r xbps/template ~/void-packages/srcpkgs/ocr-shot/template
    ```
 
-2. Build paket menggunakan `xbps-src`:
+2. Build the package with `xbps-src`:
    ```bash
    cd ~/void-packages
    ./xbps-src pkg ocr-shot
    ```
 
-3. Install paket `.xbps` yang dihasilkan:
+3. Install the generated `.xbps` package:
    ```bash
    sudo xbps-install --repository hostdir/binpkgs ocr-shot
    ```
 
 ---
 
-## 🚀 Cara Penggunaan
+## 🚀 Usage
 
-### 1. Mode GUI Live Text Interaktif (Default)
+### 1. Interactive Live Text GUI Mode (Default)
 ```bash
 ocr-shot
 ```
-*Atau tekan pintasan tombol global keyboard yang telah diatur (Hotkey).*
+*Or trigger via custom global hotkey.*
 
-### 2. Mode Bahasa Spesifik
+### 2. Specific Language Scan
 ```bash
-ocr-shot ara        # Khusus Bahasa Arab
-ocr-shot ind        # Khusus Bahasa Indonesia
-ocr-shot eng        # Khusus Bahasa Inggris
-ocr-shot ind+eng    # Indonesia & Inggris
+ocr-shot ara        # Arabic only
+ocr-shot ind        # Indonesian only
+ocr-shot eng        # English only
+ocr-shot ind+eng    # Indonesian & English
 ```
 
-### 3. Mode Cepat Non-GUI (CLI Direct to Clipboard)
+### 3. Fast Non-GUI Mode (CLI Direct to Clipboard)
 ```bash
 ocr-shot --cli
 ```
 
-### 4. Export JSON Bounding Box
+### 4. Export Word Bounding Boxes to JSON
 ```bash
 ocr-shot --json
 ```
 
 ---
 
-## ⌨️ Pengaturan Hotkey Keyboard (Window Manager / Desktop)
+## ⌨️ Global Keybinding Setup
 
-Anda disarankan untuk mendaftarkan perintah `ocr-shot` ke tombol pintas global (*Keybinding*):
+Register `ocr-shot` to a global keyboard shortcut in your Window Manager or Desktop Environment:
 
 - **Sway / Hyprland (Wayland)**:
   ```ini
@@ -114,10 +114,10 @@ Anda disarankan untuk mendaftarkan perintah `ocr-shot` ke tombol pintas global (
   bindsym $mod+Shift+s exec ocr-shot
   ```
 - **XFCE / GNOME / KDE**:
-  Buka *Settings* $\rightarrow$ *Keyboard Shortcuts* $\rightarrow$ Tambahkan Custom Shortcut $\rightarrow$ Perintah: `ocr-shot` $\rightarrow$ Pintasan: `Super+Shift+S` atau `Print`.
+  Go to **Settings** $\rightarrow$ **Keyboard Shortcuts** $\rightarrow$ Add Custom Shortcut $\rightarrow$ Command: `ocr-shot` $\rightarrow$ Shortcut: `Super+Shift+S` or `Print`.
 
 ---
 
-## 📄 Lisensi
+## 📄 License
 
-Berlisensi di bawah [MIT License](LICENSE).
+Distributed under the [MIT License](LICENSE).
