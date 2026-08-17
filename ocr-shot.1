@@ -6,11 +6,11 @@ ocr-shot \- Live Text OCR screenshot utility for Void Linux (Wayland & X11)
 [\fILANGUAGE\fR] [\fB\-\-gui\fR] [\fB\-\-cli\fR] [\fB\-\-json\fR]
 .SH DESCRIPTION
 .B ocr-shot
-captures a screen region and interactively extracts text using Tesseract OCR, featuring an Apple Live Text-like visual overlay. Supports multi-language combined scans (Indonesian, English, Arabic) and works under both Wayland and X11 sessions.
+captures a screen region and interactively extracts text using Tesseract OCR, featuring an Apple Live Text-like visual overlay. Supports multi-language combined scans and dynamic auto-detection of all installed system language packs (Indonesian, English, Arabic, Japanese, Chinese, Korean, Javanese, Sundanese, German, French, Spanish, Russian, etc.).
 .SH OPTIONS
 .TP
 .I LANGUAGE
-Target OCR language code(s) separated by '+' (e.g., \fBind+eng+ara\fR, \fBind\fR, \fBeng\fR, \fBara\fR). Default is \fBind+eng+ara\fR.
+Target OCR language code(s) separated by '+' (e.g., \fBind+eng+ara\fR, \fBind+eng+ara+jpn+chi_sim\fR, \fBjpn\fR, \fBchi_sim\fR, \fBkor\fR, \fBjav\fR, \fBsun\fR, \fBdeu\fR, \fBfra\fR, \fBspa\fR, \fBrus\fR). Default is \fBind+eng+ara\fR.
 .TP
 .B \-\-gui
 Force interactive GUI Live Text overlay mode.
@@ -22,6 +22,8 @@ Force non-interactive CLI mode (copies detected text directly to system clipboar
 Export full text and word bounding box coordinates (x, y, w, h) in structured JSON format.
 .SH FEATURES
 .IP \(bu 2
+\fBDynamic Multi-Language Support\fR: Automatically populates GUI dropdown with all Tesseract language data packs installed on Void Linux.
+.IP \(bu 2
 \fBInteractive Overlay\fR: Screen freeze with word bounding box highlights, click-and-drag text selection, double-click word selection, and triple-click line selection.
 .IP \(bu 2
 \fBSmart Data Detectors\fR: Automatically detects URLs (\fBOpen Link\fR), Email addresses (\fBSend Email\fR), Phone numbers (\fBCall/Copy Phone\fR), and Physical Locations (\fBGoogle Maps\fR).
@@ -31,15 +33,31 @@ Export full text and word bounding box coordinates (x, y, w, h) in structured JS
 \fBContext Menu\fR: Right-click anywhere on selection for quick action context menu.
 .IP \(bu 2
 \fBParagraph Join Mode\fR: Toggle between raw line breaks and unified paragraph text formatting.
+.SH INSTALLING ADDITIONAL LANGUAGES ON VOID LINUX
+To install additional language packs for Tesseract on Void Linux, run:
+.IP
+.B sudo xbps-install -S tesseract-data-<lang>
+.PP
+Examples:
 .IP \(bu 2
-\fBToast Notifications\fR: Visual feedback upon copying text.
+\fBtesseract-data-jpn\fR (Japanese)
+.IP \(bu 2
+\fBtesseract-data-chi_sim\fR (Chinese Simplified)
+.IP \(bu 2
+\fBtesseract-data-kor\fR (Korean)
+.IP \(bu 2
+\fBtesseract-data-jav\fR (Javanese)
+.IP \(bu 2
+\fBtesseract-data-sun\fR (Sundanese)
+.IP \(bu 2
+\fBtesseract-data-deu\fR (German)
+.IP \(bu 2
+\fBtesseract-data-fra\fR (French)
 .SH FILES
 .I ~/.config/ocr-shot/config.json
 Optional user configuration file to customize default settings.
 .SH SEE ALSO
 .BR tesseract (1),
-.BR grim (1),
-.BR slurp (1),
-.BR maim (1)
+.BR xbps-install (1)
 .SH AUTHOR
 Written by Suyono <suyonosukorame@ymail.com>.

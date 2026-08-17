@@ -476,6 +476,7 @@ def main():
                 ocr_data=ocr_payload,
                 on_copy_cb=handle_copy,
                 on_lang_change_cb=handle_lang_change,
+                available_langs=available_langs,
             )
             if launched:
                 sys.exit(0)

@@ -68,7 +68,7 @@ class ToastNotification(QLabel):
 class FloatingActionBar(QFrame):
     """Floating bar containing action buttons (Copy, Detectors, Search, Translate, Format, Select All, Close)."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, available_langs: Optional[List[str]] = None):
         super().__init__(parent)
         self.setObjectName("ActionBar")
         sub_window_flag = getattr(Qt.WindowType, "SubWindow", getattr(Qt, "SubWindow", 0))
@@ -152,7 +152,24 @@ class FloatingActionBar(QFrame):
         self.btn_format.setToolTip("Toggle between original lines and single paragraph mode")
 
         self.lang_combo = QComboBox()
-        self.lang_combo.addItems(["ind+eng+ara", "ind", "eng", "ara"])
+
+        # Dynamic Language Options
+        combo_items = ["ind+eng+ara"]
+        if available_langs and ("jpn" in available_langs or "chi_sim" in available_langs):
+            combo_items.append("ind+eng+ara+jpn+chi_sim")
+
+        base_langs = available_langs if available_langs else ["ind", "eng", "ara", "jpn", "chi_sim", "kor", "jav", "sun", "deu", "fra", "spa", "rus"]
+        filtered = [l for l in base_langs if l not in ("osd", "equ")]
+
+        priority_order = ["ind", "eng", "ara", "jpn", "chi_sim", "kor", "jav", "sun", "deu", "fra", "spa", "rus"]
+        prioritized = [l for l in priority_order if l in filtered]
+        remaining = sorted([l for l in filtered if l not in priority_order])
+
+        for l in (prioritized + remaining):
+            if l not in combo_items:
+                combo_items.append(l)
+
+        self.lang_combo.addItems(combo_items)
 
         self.btn_close = QPushButton("✕")
         self.btn_close.setFixedWidth(28)
@@ -175,7 +192,7 @@ class FloatingActionBar(QFrame):
 class LiveTextOverlay(QWidget):
     """Fullscreen frameless overlay displaying screenshot with interactive text bounding boxes."""
 
-    def __init__(self, image_path: str, ocr_data: Dict[str, Any], on_copy_cb=None, on_lang_change_cb=None):
+    def __init__(self, image_path: str, ocr_data: Dict[str, Any], on_copy_cb=None, on_lang_change_cb=None, available_langs: Optional[List[str]] = None):
         super().__init__()
         self.image_path = image_path
         self.ocr_data = ocr_data
@@ -212,7 +229,7 @@ class LiveTextOverlay(QWidget):
         if screen:
             self.setGeometry(screen.geometry())
 
-        self.action_bar = FloatingActionBar(self)
+        self.action_bar = FloatingActionBar(self, available_langs=available_langs)
         self.action_bar.btn_copy.clicked.connect(self.action_copy)
         self.action_bar.btn_select_all.clicked.connect(self.action_select_all)
         self.action_bar.btn_open_link.clicked.connect(self.action_open_link)
@@ -614,7 +631,7 @@ class LiveTextOverlay(QWidget):
             painter.drawRect(drag_rect)
 
 
-def launch_gui_overlay(image_path: str, ocr_data: Dict[str, Any], on_copy_cb=None, on_lang_change_cb=None) -> bool:
+def launch_gui_overlay(image_path: str, ocr_data: Dict[str, Any], on_copy_cb=None, on_lang_change_cb=None, available_langs: Optional[List[str]] = None) -> bool:
     """Launches the PyQt Live Text GUI Overlay application."""
     if not QT_BINDING:
         return False
@@ -628,6 +645,7 @@ def launch_gui_overlay(image_path: str, ocr_data: Dict[str, Any], on_copy_cb=Non
         ocr_data=ocr_data,
         on_copy_cb=on_copy_cb,
         on_lang_change_cb=on_lang_change_cb,
+        available_langs=available_langs,
     )
     overlay.showFullScreen()
     app.exec()

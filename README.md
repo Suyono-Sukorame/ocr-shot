@@ -2,12 +2,13 @@
 
 A modern **Live Text OCR Screenshot** utility for **Void Linux** (Wayland & X11). It captures a screen region and interactively extracts text, featuring an **Apple Live Text**-like visual overlay.
 
-Built with **Python 3**, **PyQt6**, and **Tesseract OCR** with native support for **Indonesian (`ind`)**, **English (`eng`)**, and **Arabic (`ara`)**.
+Built with **Python 3**, **PyQt6**, and **Tesseract OCR** with native support for **100+ languages** (Indonesian, English, Arabic, Japanese, Chinese, Korean, Javanese, Sundanese, German, French, Spanish, Russian, etc.).
 
 ---
 
 ## ✨ Features
 
+- 🌐 **Dynamic System Auto-Detect Languages**: Automatically populates the GUI dropdown with all Tesseract language packs installed on your system (`tesseract --list-langs`).
 - 🔍 **Interactive Live Text Overlay**: Freezes the screen, displays transparent highlight boxes over detected words, and allows interactive mouse text selection (*click & drag*, double-click word, triple-click line).
 - ⚡ **Smart Data Detectors (Apple Live Text-like)**:
   - 🔗 **Web Links**: Automatically detects URLs (`http://`, `https://`, `www...`) and adds an instant **"🔗 Open Link"** button.
@@ -27,7 +28,7 @@ Built with **Python 3**, **PyQt6**, and **Tesseract OCR** with native support fo
   - 🔍 **Search**: Instantly search selected text on Google.
   - 🌐 **Translate**: Translate selected text via Google Translate.
   - ≡ / ¶ **Format Toggle**: Switch between raw lines and joined paragraph text.
-  - 🌐 **Language Selector**: Switch OCR scan languages directly from the overlay.
+  - 🌐 **Dynamic Language Selector**: Switch between installed languages (`ind`, `eng`, `ara`, `jpn`, `chi_sim`, `kor`, `jav`, `sun`, etc.) or combined presets (`ind+eng+ara`, `ind+eng+ara+jpn+chi_sim`).
 - ⚡ **Auto-Detect Display Server**: Full compatibility with **Wayland** (`grim` + `slurp`) and **X11** (`maim`, `xfce4-screenshooter`, `scrot`).
 - 💻 **CLI & JSON Export Modes**:
   - `--cli`: Fast non-GUI scan directly to clipboard.
@@ -35,13 +36,36 @@ Built with **Python 3**, **PyQt6**, and **Tesseract OCR** with native support fo
 
 ---
 
-## 📦 Dependencies Installation on Void Linux
+## 📦 Dependencies & Language Packs Installation on Void Linux
 
-Install all required dependencies using `xbps-install`:
+Install core dependencies using `xbps-install`:
 
 ```bash
 sudo xbps-install -S python3 python3-Pillow python3-PyQt6 tesseract tesseract-data-ind tesseract-data-eng tesseract-data-ara libnotify wl-clipboard xclip grim slurp maim
 ```
+
+### 🌐 Installing Additional Language Data Packs
+
+To enable more languages in `ocr-shot`, simply install the corresponding Tesseract data package for Void Linux:
+
+```bash
+# Asian Languages
+sudo xbps-install -S tesseract-data-jpn      # Japanese
+sudo xbps-install -S tesseract-data-chi_sim  # Chinese Simplified
+sudo xbps-install -S tesseract-data-kor      # Korean
+
+# Indonesian Regional Languages
+sudo xbps-install -S tesseract-data-jav      # Javanese
+sudo xbps-install -S tesseract-data-sun      # Sundanese
+
+# European Languages
+sudo xbps-install -S tesseract-data-deu      # German
+sudo xbps-install -S tesseract-data-fra      # French
+sudo xbps-install -S tesseract-data-spa      # Spanish
+sudo xbps-install -S tesseract-data-rus      # Russian
+```
+
+*Newly installed language packs will automatically appear in the GUI dropdown overlay on the next run!*
 
 ---
 
@@ -102,10 +126,10 @@ ocr-shot
 
 ### 2. Specific Language Scan
 ```bash
-ocr-shot ara        # Arabic only
-ocr-shot ind        # Indonesian only
-ocr-shot eng        # English only
-ocr-shot ind+eng    # Indonesian & English
+ocr-shot jpn                  # Japanese
+ocr-shot chi_sim              # Chinese Simplified
+ocr-shot jav                  # Javanese
+ocr-shot ind+eng+ara+jpn      # Multi-language combined
 ```
 
 ### 3. Fast Non-GUI Mode (CLI Direct to Clipboard)
