@@ -9,13 +9,16 @@ Built with **Python 3**, **PyQt6**, and **Tesseract OCR** with native support fo
 ## ✨ Features
 
 - 🔍 **Interactive Live Text Overlay**: Freezes the screen, displays transparent highlight boxes over detected words, and allows interactive mouse text selection (*click & drag*).
-- 🌐 **Multi-Language Combined Mode**: Simultaneously scans Indonesian (`ind`), English (`eng`), and Arabic (`ara`) in a single pass (`ind+eng+ara`).
-- ⚡ **Auto-Detect Display Server**: Full compatibility with **Wayland** (`grim` + `slurp`) and **X11** (`maim`, `xfce4-screenshooter`, `scrot`).
+- 🔗 **Smart Link & URL Detection**: Automatically detects URLs (`http://`, `https://`, `www...`) in selected text and adds an instant **"🔗 Open Link"** button to open the web page.
+- 📄 **Paragraph Join Mode**: Toggle between original line breaks (`≡ Lines`) and continuous single paragraph mode (`¶ Para`) to remove line-wrap breaks and hyphenations.
 - 📋 **Floating Action Bar**:
-  - 📋 **Copy**: Copy selected text to clipboard (`wl-copy` / `xclip`).
+  - 📋 **Copy**: Copy selected text to system clipboard with a sleek **"Copied to Clipboard!"** visual toast notification.
+  - 🔗 **Open Link**: Instant action button when a web link/URL is detected.
   - 🔍 **Search**: Instantly search selected text on Google.
   - 🌐 **Translate**: Translate selected text via Google Translate.
+  - ≡ / ¶ **Format Toggle**: Switch between raw lines and joined paragraph text.
   - 🌐 **Language Selector**: Switch OCR scan languages directly from the overlay.
+- ⚡ **Auto-Detect Display Server**: Full compatibility with **Wayland** (`grim` + `slurp`) and **X11** (`maim`, `xfce4-screenshooter`, `scrot`).
 - 💻 **CLI & JSON Export Modes**:
   - `--cli`: Fast non-GUI scan directly to clipboard.
   - `--json`: Export full text and word bounding box coordinates $(x, y, w, h)$ in structured JSON format.
@@ -40,22 +43,30 @@ sudo xbps-install -S python3 python3-Pillow python3-PyQt6 tesseract tesseract-da
    cd ocr-shot
    ```
 
-2. Make scripts executable and copy binaries & desktop entry:
+2. Make scripts executable and copy binaries, desktop entry & manpage:
    ```bash
-   chmod +x ocr-shot ocr_gui.py
+   chmod +x ocr-shot ocr_gui.py build-xbps.sh
    sudo cp ocr-shot ocr_gui.py /usr/local/bin/
    sudo cp ocr-shot.desktop /usr/share/applications/
+   sudo cp ocr-shot.1 /usr/share/man/man1/
    ```
 
 ---
 
 ## ❄️ Building XBPS Package for Void Linux (`xbps-src`)
 
-If you are using the `void-packages` source repository:
+You can easily build the `.xbps` package using the included helper script or manually:
 
+### Option A: Using the Helper Script (Recommended)
+```bash
+./build-xbps.sh ~/void-packages
+```
+
+### Option B: Manual setup with `xbps-src`
 1. Copy the package template into your `void-packages` directory:
    ```bash
-   cp -r xbps/template ~/void-packages/srcpkgs/ocr-shot/template
+   mkdir -p ~/void-packages/srcpkgs/ocr-shot
+   cp xbps/template ~/void-packages/srcpkgs/ocr-shot/template
    ```
 
 2. Build the package with `xbps-src`:
@@ -95,6 +106,11 @@ ocr-shot --cli
 ### 4. Export Word Bounding Boxes to JSON
 ```bash
 ocr-shot --json
+```
+
+### 5. View Manpage
+```bash
+man ocr-shot
 ```
 
 ---

@@ -9,9 +9,15 @@ maintainer="Suyono <suyonosukorame@ymail.com>"
 license="MIT"
 homepage="https://github.com/Suyono-Sukorame/ocr-shot"
 
+do_check() {
+	python3 -m py_compile ocr-shot ocr_gui.py
+}
+
 do_install() {
 	vbin ocr-shot
 	vbin ocr_gui.py
 	vinstall ocr-shot.desktop 644 usr/share/applications
+	vman ocr-shot.1
 	vlicense LICENSE
 }
+

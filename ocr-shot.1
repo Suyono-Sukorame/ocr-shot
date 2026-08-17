@@ -1,0 +1,43 @@
+.TH OCR-SHOT 1 "August 2026" "ocr-shot 1.0.0" "User Commands"
+.SH NAME
+ocr-shot \- Live Text OCR screenshot utility for Void Linux (Wayland & X11)
+.SH SYNOPSIS
+.B ocr-shot
+[\fILANGUAGE\fR] [\fB\-\-gui\fR] [\fB\-\-cli\fR] [\fB\-\-json\fR]
+.SH DESCRIPTION
+.B ocr-shot
+captures a screen region and interactively extracts text using Tesseract OCR, featuring an Apple Live Text-like visual overlay. Supports multi-language combined scans (Indonesian, English, Arabic) and works under both Wayland and X11 sessions.
+.SH OPTIONS
+.TP
+.I LANGUAGE
+Target OCR language code(s) separated by '+' (e.g., \fBind+eng+ara\fR, \fBind\fR, \fBeng\fR, \fBara\fR). Default is \fBind+eng+ara\fR.
+.TP
+.B \-\-gui
+Force interactive GUI Live Text overlay mode.
+.TP
+.B \-\-cli
+Force non-interactive CLI mode (copies detected text directly to system clipboard).
+.TP
+.B \-\-json
+Export full text and word bounding box coordinates (x, y, w, h) in structured JSON format.
+.SH FEATURES
+.IP \(bu 2
+\fBInteractive Overlay\fR: Screen freeze with word bounding box highlights and click-and-drag text selection.
+.IP \(bu 2
+\fBSmart Link Detection\fR: Automatically displays a "🔗 Open Link" button when a web URL is selected.
+.IP \(bu 2
+\fBParagraph Join Mode\fR: Toggle between raw line breaks and unified paragraph text formatting.
+.IP \(bu 2
+\fBToast Notifications\fR: Sleek visual feedback when copying text.
+.IP \(bu 2
+\fBDisplay Server Compatibility\fR: Auto-detects Wayland (\fBgrim\fR/\fBslurp\fR) and X11 (\fBmaim\fR/\fBxfce4-screenshooter\fR/\fBscrot\fR).
+.SH FILES
+.I ~/.config/ocr-shot/config.json
+Optional user configuration file to customize default settings.
+.SH SEE ALSO
+.BR tesseract (1),
+.BR grim (1),
+.BR slurp (1),
+.BR maim (1)
+.SH AUTHOR
+Written by Suyono <suyonosukorame@ymail.com>.

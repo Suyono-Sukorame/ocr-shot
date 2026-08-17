@@ -33,6 +33,18 @@ except ImportError:
 DEFAULT_LANGUAGES = ["ind", "eng", "ara"]
 
 
+def load_user_config() -> dict:
+    """Loads optional user configuration from ~/.config/ocr-shot/config.json."""
+    config_path = os.path.expanduser("~/.config/ocr-shot/config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to load user config from {config_path}: {e}", file=sys.stderr)
+    return {}
+
+
 def notify(msg: str, title: str = "OCR"):
     """Sends a desktop notification using notify-send if available, else prints to stderr."""
     notify_bin = shutil.which("notify-send")
@@ -363,11 +375,14 @@ def perform_ocr_pipeline(tesseract_bin: str, tmp_path: str, prep_path: str, targ
 
 
 def main():
+    user_config = load_user_config()
+    default_lang = user_config.get("default_lang") or os.environ.get("OCR_LANG", "+".join(DEFAULT_LANGUAGES))
+
     parser = argparse.ArgumentParser(description="ocr-shot - Screenshot region OCR tool with Live Text Overlay")
     parser.add_argument(
         "lang",
         nargs="?",
-        default=os.environ.get("OCR_LANG", "+".join(DEFAULT_LANGUAGES)),
+        default=default_lang,
         help="Target OCR language(s) separated by + (default: ind+eng+ara)",
     )
     parser.add_argument("--json", action="store_true", help="Output OCR text and bounding box coordinates as JSON")
