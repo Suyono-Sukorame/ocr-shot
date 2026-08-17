@@ -17,6 +17,7 @@ do_install() {
 	vbin ocr-shot
 	vbin ocr_gui.py
 	vinstall ocr-shot.desktop 644 usr/share/applications
+	vinstall ocr-shot.png 644 usr/share/pixmaps
 	vman ocr-shot.1
 	vlicense LICENSE
 }

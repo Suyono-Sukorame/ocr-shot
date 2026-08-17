@@ -5,6 +5,7 @@ Provides Apple Live Text-like visual highlights, interactive mouse text selectio
 and a floating action bar (Copy, Search, Translate).
 """
 
+import os
 import re
 import sys
 import urllib.parse
@@ -15,21 +16,21 @@ QT_BINDING = None
 try:
     from PyQt6 import QtCore, QtGui, QtWidgets
     from PyQt6.QtCore import Qt, QRect, QPoint, QUrl, QTimer
-    from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices
+    from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices, QIcon
     from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox, QMenu
     QT_BINDING = "PyQt6"
 except ImportError:
     try:
         from PySide6 import QtCore, QtGui, QtWidgets
         from PySide6.QtCore import Qt, QRect, QPoint, QUrl, QTimer
-        from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices
+        from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices, QIcon
         from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox, QMenu
         QT_BINDING = "PySide6"
     except ImportError:
         try:
             from PyQt5 import QtCore, QtGui, QtWidgets
             from PyQt5.QtCore import Qt, QRect, QPoint, QUrl, QTimer
-            from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices
+            from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices, QIcon
             from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox, QMenu
             QT_BINDING = "PyQt5"
         except ImportError:
@@ -223,6 +224,12 @@ class LiveTextOverlay(QWidget):
         self.setWindowFlags(frameless | stays_on_top | tool_flag)
         delete_on_close = getattr(Qt.WidgetAttribute, "WA_DeleteOnClose", getattr(Qt, "WA_DeleteOnClose", 55))
         self.setAttribute(delete_on_close)
+
+        # Window Icon Setup
+        for icon_path in ["/usr/share/pixmaps/ocr-shot.png", os.path.join(os.path.dirname(__file__), "ocr-shot.png")]:
+            if os.path.exists(icon_path):
+                self.setWindowIcon(QIcon(icon_path))
+                break
 
         # Fullscreen setup
         screen = QApplication.primaryScreen()

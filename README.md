@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="ocr-shot.png" width="160" alt="ocr-shot logo">
+</p>
+
 # ocr-shot 📸🔤
 
 A modern **Live Text OCR Screenshot** utility for **Void Linux** (Wayland & X11). It captures a screen region and interactively extracts text, featuring an **Apple Live Text**-like visual overlay.
