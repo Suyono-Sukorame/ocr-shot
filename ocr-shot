@@ -1,0 +1,105 @@
+#!/bin/sh
+# ocr-shot - screenshot OCR (region) -> clipboard + notifikasi
+# Usage: ocr-shot [lang]  (default: ind, atau via env OCR_LANG)
+set -u
+
+LANG_REQ="${1:-${OCR_LANG:-ind}}"
+TMP="$(mktemp --suffix=.png)"
+PREP="$(mktemp --suffix=.png)"
+
+notify() { notify-send "OCR" "$1" 2>/dev/null || echo "OCR: $1"; }
+
+# --- Validasi bahasa tersedia ---
+LANGS="$(tesseract-ocr --list-langs 2>/dev/null | tail -n +2)"
+if ! printf '%s\n' "$LANGS" | grep -qx "$LANG_REQ"; then
+    LANG_REQ="$(printf '%s\n' "$LANGS" | grep -vx 'osd\|equ' | head -1)"
+    [ -n "$LANG_REQ" ] || LANG_REQ="ind"
+fi
+
+# --- Capture region ---
+if ! xfce4-screenshooter --region --save="$TMP" 2>/dev/null || [ ! -s "$TMP" ]; then
+    notify "Capture dibatalkan/gagal"
+    rm -f "$TMP" "$PREP"
+    exit 1
+fi
+
+# --- Preprocessing (mild & cepat): grayscale + upscale maks 2.5x + denoise + contrast ---
+python3 - "$TMP" "$PREP" <<'EOF'
+import sys
+from PIL import Image, ImageOps, ImageFilter
+
+src, dst = sys.argv[1], sys.argv[2]
+img = Image.open(src).convert('L')
+w, h = img.size
+
+m = min(w, h)
+if m < 700:
+    scale = min(2.5, 1200.0 / m)
+    img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
+if max(img.size) <= 2500:
+    img = img.filter(ImageFilter.MedianFilter(3))
+img = ImageOps.autocontrast(img)
+img.save(dst)
+EOF
+
+[ -s "$PREP" ] || { notify "Preprocessing gagal"; rm -f "$TMP" "$PREP"; exit 1; }
+
+# --- OCR: psm 6 dulu (terbaik utk teks layar), baru psm 3/11 kalau kosong ---
+ocr() { tesseract-ocr "$1" stdout -l "$2" --oem 1 --psm "$3" 2>/dev/null; }
+
+clean() { printf '%s' "$1" | sed -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' | tr -s ' \n' ' \n'; }
+
+best=""
+for psm in 6 3 11; do
+    out="$(clean "$(ocr "$PREP" "$LANG_REQ" "$psm")")"
+    [ -n "$out" ] && { best="$out"; break; }
+done
+
+# --- Fallback binarization hanya kalau masih kosong ---
+if [ -z "$best" ]; then
+    python3 - "$TMP" "$PREP" <<'EOF'
+import sys
+from PIL import Image, ImageOps, ImageFilter, ImageChops
+src, dst = sys.argv[1], sys.argv[2]
+img = Image.open(src).convert('L')
+w, h = img.size
+m = min(w, h)
+if m < 700:
+    scale = min(2.5, 1200.0 / m)
+    img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+img = img.filter(ImageFilter.MedianFilter(3))
+img = ImageOps.autocontrast(img)
+blur = img.filter(ImageFilter.GaussianBlur(radius=6))
+dark = ImageChops.subtract(blur, img).point(lambda p: 0 if p < 20 else 255)
+light = ImageChops.subtract(img, blur).point(lambda p: 0 if p < 20 else 255)
+def ink(im): return im.histogram()[255]
+text = dark if ink(dark) >= ink(light) else light
+text.point(lambda p: 0 if p else 255).save(dst)
+EOF
+    for psm in 6 3; do
+        out="$(clean "$(ocr "$PREP" "$LANG_REQ" "$psm")")"
+        [ -n "$out" ] && { best="$out"; break; }
+    done
+fi
+
+if [ -z "$best" ]; then
+    notify "Tidak ada teks terdeteksi (lang: $LANG_REQ)"
+    rm -f "$TMP" "$PREP"
+    exit 1
+fi
+
+if [ -z "${DISPLAY:-}" ]; then
+    printf '%s\n' "$best"
+    rm -f "$TMP" "$PREP"
+    exit 0
+fi
+
+if ! printf '%s\n' "$best" | timeout 3 xclip -selection clipboard >/dev/null 2>&1; then
+    notify "Tidak bisa copy ke clipboard"
+fi
+preview="$(printf '%s\n' "$best" | head -c 160)"
+notify "Teks disalin ke clipboard (lang: $LANG_REQ)
+
+$preview"
+rm -f "$TMP" "$PREP"
