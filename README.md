@@ -8,12 +8,22 @@ Built with **Python 3**, **PyQt6**, and **Tesseract OCR** with native support fo
 
 ## ✨ Features
 
-- 🔍 **Interactive Live Text Overlay**: Freezes the screen, displays transparent highlight boxes over detected words, and allows interactive mouse text selection (*click & drag*).
-- 🔗 **Smart Link & URL Detection**: Automatically detects URLs (`http://`, `https://`, `www...`) in selected text and adds an instant **"🔗 Open Link"** button to open the web page.
+- 🔍 **Interactive Live Text Overlay**: Freezes the screen, displays transparent highlight boxes over detected words, and allows interactive mouse text selection (*click & drag*, double-click word, triple-click line).
+- ⚡ **Smart Data Detectors (Apple Live Text-like)**:
+  - 🔗 **Web Links**: Automatically detects URLs (`http://`, `https://`, `www...`) and adds an instant **"🔗 Open Link"** button.
+  - 📧 **Emails**: Detects email addresses (`test@example.com`) and adds a **"📧 Email"** button (`mailto:`).
+  - 📞 **Phone Numbers**: Detects phone numbers and adds a **"📞 Phone"** button.
+  - 📍 **Addresses & Locations**: Detects street names / locations and adds a **"📍 Maps"** button (opens Google Maps).
+- 🖱️ **Gestures & Selection UX**:
+  - 🔳 **Select All (`Ctrl+A`)**: Instantly select all detected text on screen.
+  - 🖱️ **Double-Click**: Select single word under cursor.
+  - 🖱️ **Triple-Click**: Select entire line under cursor.
+  - 🖱️ **Right-Click Context Menu**: Native popup menu for quick actions (Copy, Select All, Search, Translate, Smart Actions).
 - 📄 **Paragraph Join Mode**: Toggle between original line breaks (`≡ Lines`) and continuous single paragraph mode (`¶ Para`) to remove line-wrap breaks and hyphenations.
 - 📋 **Floating Action Bar**:
-  - 📋 **Copy**: Copy selected text to system clipboard with a sleek **"Copied to Clipboard!"** visual toast notification.
-  - 🔗 **Open Link**: Instant action button when a web link/URL is detected.
+  - 📋 **Copy**: Copy selected text with visual **"Copied to Clipboard!"** toast notification.
+  - 🔳 **All**: Select all words (`Ctrl+A`).
+  - 🔗 / 📧 / 📞 / 📍 **Smart Detector Buttons**: Dynamic quick action buttons based on selected text.
   - 🔍 **Search**: Instantly search selected text on Google.
   - 🌐 **Translate**: Translate selected text via Google Translate.
   - ≡ / ¶ **Format Toggle**: Switch between raw lines and joined paragraph text.

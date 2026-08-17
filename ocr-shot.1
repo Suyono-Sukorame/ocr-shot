@@ -22,15 +22,17 @@ Force non-interactive CLI mode (copies detected text directly to system clipboar
 Export full text and word bounding box coordinates (x, y, w, h) in structured JSON format.
 .SH FEATURES
 .IP \(bu 2
-\fBInteractive Overlay\fR: Screen freeze with word bounding box highlights and click-and-drag text selection.
+\fBInteractive Overlay\fR: Screen freeze with word bounding box highlights, click-and-drag text selection, double-click word selection, and triple-click line selection.
 .IP \(bu 2
-\fBSmart Link Detection\fR: Automatically displays a "🔗 Open Link" button when a web URL is selected.
+\fBSmart Data Detectors\fR: Automatically detects URLs (\fBOpen Link\fR), Email addresses (\fBSend Email\fR), Phone numbers (\fBCall/Copy Phone\fR), and Physical Locations (\fBGoogle Maps\fR).
+.IP \(bu 2
+\fBSelect All Shortcut\fR: Press \fBCtrl+A\fR or click \fBAll\fR to select all detected text instantly.
+.IP \(bu 2
+\fBContext Menu\fR: Right-click anywhere on selection for quick action context menu.
 .IP \(bu 2
 \fBParagraph Join Mode\fR: Toggle between raw line breaks and unified paragraph text formatting.
 .IP \(bu 2
-\fBToast Notifications\fR: Sleek visual feedback when copying text.
-.IP \(bu 2
-\fBDisplay Server Compatibility\fR: Auto-detects Wayland (\fBgrim\fR/\fBslurp\fR) and X11 (\fBmaim\fR/\fBxfce4-screenshooter\fR/\fBscrot\fR).
+\fBToast Notifications\fR: Visual feedback upon copying text.
 .SH FILES
 .I ~/.config/ocr-shot/config.json
 Optional user configuration file to customize default settings.

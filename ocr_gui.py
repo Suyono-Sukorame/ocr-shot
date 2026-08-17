@@ -16,26 +16,27 @@ try:
     from PyQt6 import QtCore, QtGui, QtWidgets
     from PyQt6.QtCore import Qt, QRect, QPoint, QUrl, QTimer
     from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices
-    from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox
+    from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox, QMenu
     QT_BINDING = "PyQt6"
 except ImportError:
     try:
         from PySide6 import QtCore, QtGui, QtWidgets
         from PySide6.QtCore import Qt, QRect, QPoint, QUrl, QTimer
         from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices
-        from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox
+        from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox, QMenu
         QT_BINDING = "PySide6"
     except ImportError:
         try:
             from PyQt5 import QtCore, QtGui, QtWidgets
             from PyQt5.QtCore import Qt, QRect, QPoint, QUrl, QTimer
             from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont, QCursor, QDesktopServices
-            from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox
+            from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QComboBox, QMenu
             QT_BINDING = "PyQt5"
         except ImportError:
             QT_BINDING = None
             QFrame = object  # type: ignore
             QWidget = object  # type: ignore
+            QMenu = object  # type: ignore
 
 
 class ToastNotification(QLabel):
@@ -65,7 +66,7 @@ class ToastNotification(QLabel):
 
 
 class FloatingActionBar(QFrame):
-    """Floating bar containing action buttons (Copy, Search, Translate, Format, Link, Close)."""
+    """Floating bar containing action buttons (Copy, Detectors, Search, Translate, Format, Select All, Close)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -96,12 +97,12 @@ class FloatingActionBar(QFrame):
             QPushButton:pressed {
                 background-color: #1D4ED8;
             }
-            QPushButton#BtnOpenLink {
+            QPushButton.SmartDetector {
                 background-color: rgba(16, 185, 129, 0.25);
                 border: 1px solid rgba(16, 185, 129, 0.5);
                 color: #34D399;
             }
-            QPushButton#BtnOpenLink:hover {
+            QPushButton.SmartDetector:hover {
                 background-color: #10B981;
                 color: #FFFFFF;
             }
@@ -125,9 +126,25 @@ class FloatingActionBar(QFrame):
         layout.setSpacing(8)
 
         self.btn_copy = QPushButton("📋 Copy")
+        self.btn_select_all = QPushButton("🔳 All")
+        self.btn_select_all.setToolTip("Select all detected text on screen (Ctrl+A)")
+
+        # Smart Data Detector buttons
         self.btn_open_link = QPushButton("🔗 Open Link")
-        self.btn_open_link.setObjectName("BtnOpenLink")
+        self.btn_open_link.setProperty("class", "SmartDetector")
         self.btn_open_link.hide()
+
+        self.btn_email = QPushButton("📧 Email")
+        self.btn_email.setProperty("class", "SmartDetector")
+        self.btn_email.hide()
+
+        self.btn_phone = QPushButton("📞 Phone")
+        self.btn_phone.setProperty("class", "SmartDetector")
+        self.btn_phone.hide()
+
+        self.btn_maps = QPushButton("📍 Maps")
+        self.btn_maps.setProperty("class", "SmartDetector")
+        self.btn_maps.hide()
 
         self.btn_search = QPushButton("🔍 Search")
         self.btn_translate = QPushButton("🌐 Translate")
@@ -141,7 +158,11 @@ class FloatingActionBar(QFrame):
         self.btn_close.setFixedWidth(28)
 
         layout.addWidget(self.btn_copy)
+        layout.addWidget(self.btn_select_all)
         layout.addWidget(self.btn_open_link)
+        layout.addWidget(self.btn_email)
+        layout.addWidget(self.btn_phone)
+        layout.addWidget(self.btn_maps)
         layout.addWidget(self.btn_search)
         layout.addWidget(self.btn_translate)
         layout.addWidget(self.btn_format)
@@ -168,7 +189,12 @@ class LiveTextOverlay(QWidget):
         self.selection_end: Optional[QPoint] = None
         self.is_selecting = False
         self.paragraph_mode = False
+
+        # Smart Data Detector States
         self.detected_url: Optional[str] = None
+        self.detected_email: Optional[str] = None
+        self.detected_phone: Optional[str] = None
+        self.detected_address: Optional[str] = None
         self.toast: Optional[ToastNotification] = None
 
         self.selected_indices: set[int] = set()
@@ -188,7 +214,11 @@ class LiveTextOverlay(QWidget):
 
         self.action_bar = FloatingActionBar(self)
         self.action_bar.btn_copy.clicked.connect(self.action_copy)
+        self.action_bar.btn_select_all.clicked.connect(self.action_select_all)
         self.action_bar.btn_open_link.clicked.connect(self.action_open_link)
+        self.action_bar.btn_email.clicked.connect(self.action_open_email)
+        self.action_bar.btn_phone.clicked.connect(self.action_open_phone)
+        self.action_bar.btn_maps.clicked.connect(self.action_open_maps)
         self.action_bar.btn_search.clicked.connect(self.action_search)
         self.action_bar.btn_translate.clicked.connect(self.action_translate)
         self.action_bar.btn_format.clicked.connect(self.action_toggle_format)
@@ -205,8 +235,18 @@ class LiveTextOverlay(QWidget):
 
     def keyPressEvent(self, event: QtGui.QKeyEvent):
         key_esc = getattr(Qt.Key, "Key_Escape", getattr(Qt, "Key_Escape", 0x01000000))
+        key_a = getattr(Qt.Key, "Key_A", getattr(Qt, "Key_A", 0x41))
+        
+        control_modifier = getattr(Qt.KeyboardModifier, "ControlModifier", getattr(Qt, "ControlModifier", 0x04000000))
+        meta_modifier = getattr(Qt.KeyboardModifier, "MetaModifier", getattr(Qt, "MetaModifier", 0x10000000))
+
+        modifiers = event.modifiers()
+        has_ctrl = bool(modifiers & (control_modifier | meta_modifier))
+
         if event.key() == key_esc:
             self.close()
+        elif has_ctrl and event.key() == key_a:
+            self.action_select_all()
         elif event.matches(QtGui.QKeySequence.StandardKey.Copy):
             self.action_copy()
 
@@ -231,7 +271,8 @@ class LiveTextOverlay(QWidget):
         
         return raw_text
 
-    def check_for_urls(self, text: str):
+    def check_for_data_detectors(self, text: str):
+        # 1. URL detector
         url_match = re.search(r'https?://[^\s,;()"\']+|www\.[^\s,;()"\']+', text)
         if url_match:
             url = url_match.group(0)
@@ -242,6 +283,34 @@ class LiveTextOverlay(QWidget):
         else:
             self.detected_url = None
             self.action_bar.btn_open_link.hide()
+
+        # 2. Email detector
+        email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
+        if email_match:
+            self.detected_email = email_match.group(0)
+            self.action_bar.btn_email.show()
+        else:
+            self.detected_email = None
+            self.action_bar.btn_email.hide()
+
+        # 3. Phone detector
+        phone_match = re.search(r'(?:\+?\d{1,4}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}[-.\s]?\d{3,5}', text)
+        if phone_match and len(re.sub(r'\D', '', phone_match.group(0))) >= 6:
+            self.detected_phone = phone_match.group(0).strip()
+            self.action_bar.btn_phone.show()
+        else:
+            self.detected_phone = None
+            self.action_bar.btn_phone.hide()
+
+        # 4. Address / Maps detector
+        address_match = re.search(r'\b(?:Jalan|Jl\.|Street|St\.|Avenue|Ave|Drive|Dr\.|Road|Rd\.|Boulevard|Blvd|Blok|Kota|Kabupaten)\b', text, re.IGNORECASE) or re.search(r'-?\d{1,2}\.\d{4,},\s*-?\d{1,3}\.\d{4,}', text)
+        if address_match:
+            self.detected_address = text.strip()
+            self.action_bar.btn_maps.show()
+        else:
+            self.detected_address = None
+            self.action_bar.btn_maps.hide()
+
         self.action_bar.adjustSize()
 
     def action_copy(self):
@@ -259,9 +328,50 @@ class LiveTextOverlay(QWidget):
         self.action_bar.hide()
         QTimer.singleShot(500, self.close)
 
+    def action_select_all(self):
+        self.selected_indices = set(range(len(self.words)))
+        if self.words:
+            min_x = min(w["x"] for w in self.words)
+            max_x = max(w["x"] + w["w"] for w in self.words)
+            min_y = min(w["y"] for w in self.words)
+            max_y = max(w["y"] + w["h"] for w in self.words)
+
+            self.selection_start = QPoint(min_x, min_y)
+            self.selection_end = QPoint(max_x, max_y)
+
+        selected_text = self.get_selected_text()
+        self.check_for_data_detectors(selected_text)
+
+        self.update_action_bar_position()
+        self.action_bar.show()
+        self.update()
+
     def action_open_link(self):
         if self.detected_url:
             QDesktopServices.openUrl(QUrl(self.detected_url))
+            self.close()
+
+    def action_open_email(self):
+        if self.detected_email:
+            QDesktopServices.openUrl(QUrl("mailto:" + self.detected_email))
+            self.close()
+
+    def action_open_phone(self):
+        if self.detected_phone:
+            clipboard = QApplication.clipboard()
+            if clipboard:
+                clipboard.setText(self.detected_phone)
+            if self.on_copy_cb:
+                self.on_copy_cb(self.detected_phone)
+            self.toast = ToastNotification(self, f"📞 Copied Phone: {self.detected_phone}")
+            self.toast.show()
+            self.action_bar.hide()
+            QTimer.singleShot(500, self.close)
+
+    def action_open_maps(self):
+        if self.detected_address:
+            maps_url = "https://www.google.com/maps/search/?api=1&query=" + urllib.parse.quote(self.detected_address)
+            QDesktopServices.openUrl(QUrl(maps_url))
             self.close()
 
     def action_search(self):
@@ -301,6 +411,107 @@ class LiveTextOverlay(QWidget):
             self.action_bar.hide()
             self.update()
 
+    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent):
+        pos = event.pos()
+        clicked_idx = None
+        for idx, w in enumerate(self.words):
+            rect = QRect(w["x"], w["y"], w["w"], w["h"])
+            if rect.contains(pos):
+                clicked_idx = idx
+                break
+
+        if clicked_idx is not None:
+            w_target = self.words[clicked_idx]
+            target_block = w_target.get("block_num", 0)
+            target_line = w_target.get("line_num", 0)
+
+            # If double click on an already selected single word, convert to triple-click line selection
+            if clicked_idx in self.selected_indices and len(self.selected_indices) == 1:
+                self.selected_indices = {
+                    idx for idx, w in enumerate(self.words)
+                    if w.get("block_num", 0) == target_block and w.get("line_num", 0) == target_line
+                }
+            else:
+                self.selected_indices = {clicked_idx}
+
+            selected_text = self.get_selected_text()
+            self.check_for_data_detectors(selected_text)
+
+            sel_words = [self.words[i] for i in self.selected_indices]
+            min_x = min(w["x"] for w in sel_words)
+            max_x = max(w["x"] + w["w"] for w in sel_words)
+            min_y = min(w["y"] for w in sel_words)
+            max_y = max(w["y"] + w["h"] for w in sel_words)
+
+            self.selection_start = QPoint(min_x, min_y)
+            self.selection_end = QPoint(max_x, max_y)
+
+            self.update_action_bar_position()
+            self.action_bar.show()
+            self.update()
+
+    def contextMenuEvent(self, event: QtGui.QContextMenuEvent):
+        if not QT_BINDING:
+            return
+
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #1E222A;
+                color: #FFFFFF;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 8px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 20px;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            QMenu::item:selected {
+                background-color: #3B82F6;
+            }
+        """)
+
+        action_copy = menu.addAction("📋 Copy (Ctrl+C)")
+        action_select_all = menu.addAction("🔳 Select All (Ctrl+A)")
+        menu.addSeparator()
+
+        action_open_link = menu.addAction(f"🔗 Open Link ({self.detected_url[:25]}...)") if self.detected_url else None
+        action_email = menu.addAction(f"📧 Send Email ({self.detected_email})") if self.detected_email else None
+        action_phone = menu.addAction(f"📞 Copy/Call Phone ({self.detected_phone})") if self.detected_phone else None
+        action_maps = menu.addAction("📍 Open in Google Maps") if self.detected_address else None
+
+        if self.detected_url or self.detected_email or self.detected_phone or self.detected_address:
+            menu.addSeparator()
+
+        action_search = menu.addAction("🔍 Search Google")
+        action_translate = menu.addAction("🌐 Translate")
+        menu.addSeparator()
+        action_close = menu.addAction("✕ Close (Esc)")
+
+        exec_pos = event.globalPos() if hasattr(event, "globalPos") else QCursor.pos()
+        chosen = menu.exec(exec_pos)
+
+        if chosen == action_copy:
+            self.action_copy()
+        elif chosen == action_select_all:
+            self.action_select_all()
+        elif action_open_link and chosen == action_open_link:
+            self.action_open_link()
+        elif action_email and chosen == action_email:
+            self.action_open_email()
+        elif action_phone and chosen == action_phone:
+            self.action_open_phone()
+        elif action_maps and chosen == action_maps:
+            self.action_open_maps()
+        elif chosen == action_search:
+            self.action_search()
+        elif chosen == action_translate:
+            self.action_translate()
+        elif chosen == action_close:
+            self.close()
+
     def mouseMoveEvent(self, event: QtGui.QMouseEvent):
         pos = event.pos()
         
@@ -332,7 +543,7 @@ class LiveTextOverlay(QWidget):
             self.update_selection_box()
             
             selected_text = self.get_selected_text()
-            self.check_for_urls(selected_text)
+            self.check_for_data_detectors(selected_text)
 
             self.update_action_bar_position()
             self.action_bar.show()
@@ -421,4 +632,5 @@ def launch_gui_overlay(image_path: str, ocr_data: Dict[str, Any], on_copy_cb=Non
     overlay.showFullScreen()
     app.exec()
     return True
+
 
