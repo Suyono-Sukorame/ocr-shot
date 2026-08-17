@@ -1,105 +1,489 @@
-#!/bin/sh
-# ocr-shot - screenshot OCR (region) -> clipboard + notifikasi
-# Usage: ocr-shot [lang]  (default: ind, atau via env OCR_LANG)
-set -u
+#!/usr/bin/env python3
+"""
+ocr-shot - Screenshot OCR (region) -> Clipboard + Desktop Notification + Live Text GUI Overlay
+Supports Wayland & X11 with Tesseract bounding box coordinate extraction (TSV/JSON).
+Supports Multi-Language Combined Mode (ind+eng+ara) with smart fallback.
 
-LANG_REQ="${1:-${OCR_LANG:-ind}}"
-TMP="$(mktemp --suffix=.png)"
-PREP="$(mktemp --suffix=.png)"
+Usage: ocr-shot [lang] [--gui] [--cli] [--json]
+"""
 
-notify() { notify-send "OCR" "$1" 2>/dev/null || echo "OCR: $1"; }
-
-# --- Validasi bahasa tersedia ---
-LANGS="$(tesseract-ocr --list-langs 2>/dev/null | tail -n +2)"
-if ! printf '%s\n' "$LANGS" | grep -qx "$LANG_REQ"; then
-    LANG_REQ="$(printf '%s\n' "$LANGS" | grep -vx 'osd\|equ' | head -1)"
-    [ -n "$LANG_REQ" ] || LANG_REQ="ind"
-fi
-
-# --- Capture region ---
-if ! xfce4-screenshooter --region --save="$TMP" 2>/dev/null || [ ! -s "$TMP" ]; then
-    notify "Capture dibatalkan/gagal"
-    rm -f "$TMP" "$PREP"
-    exit 1
-fi
-
-# --- Preprocessing (mild & cepat): grayscale + upscale maks 2.5x + denoise + contrast ---
-python3 - "$TMP" "$PREP" <<'EOF'
+import argparse
+import csv
+import json
+import os
+import shutil
+import subprocess
 import sys
-from PIL import Image, ImageOps, ImageFilter
+import tempfile
+from typing import Any, Dict, List, Tuple
 
-src, dst = sys.argv[1], sys.argv[2]
-img = Image.open(src).convert('L')
-w, h = img.size
+try:
+    from PIL import Image, ImageChops, ImageFilter, ImageOps
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
 
-m = min(w, h)
-if m < 700:
-    scale = min(2.5, 1200.0 / m)
-    img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+try:
+    from ocr_gui import launch_gui_overlay, QT_BINDING
+    HAS_GUI = bool(QT_BINDING)
+except ImportError:
+    HAS_GUI = False
+    QT_BINDING = None
 
-if max(img.size) <= 2500:
-    img = img.filter(ImageFilter.MedianFilter(3))
-img = ImageOps.autocontrast(img)
-img.save(dst)
-EOF
+DEFAULT_LANGUAGES = ["ind", "eng", "ara"]
 
-[ -s "$PREP" ] || { notify "Preprocessing gagal"; rm -f "$TMP" "$PREP"; exit 1; }
 
-# --- OCR: psm 6 dulu (terbaik utk teks layar), baru psm 3/11 kalau kosong ---
-ocr() { tesseract-ocr "$1" stdout -l "$2" --oem 1 --psm "$3" 2>/dev/null; }
+def notify(msg: str, title: str = "OCR"):
+    """Sends a desktop notification using notify-send if available, else prints to stderr."""
+    notify_bin = shutil.which("notify-send")
+    if notify_bin:
+        try:
+            subprocess.run([notify_bin, title, msg], stderr=subprocess.DEVNULL, check=False)
+            return
+        except Exception:
+            pass
+    print(f"[{title}] {msg}", file=sys.stderr)
 
-clean() { printf '%s' "$1" | sed -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' | tr -s ' \n' ' \n'; }
 
-best=""
-for psm in 6 3 11; do
-    out="$(clean "$(ocr "$PREP" "$LANG_REQ" "$psm")")"
-    [ -n "$out" ] && { best="$out"; break; }
-done
+def is_wayland() -> bool:
+    """Detects if running under a Wayland session."""
+    return bool(os.environ.get("WAYLAND_DISPLAY")) or os.environ.get("XDG_SESSION_TYPE") == "wayland"
 
-# --- Fallback binarization hanya kalau masih kosong ---
-if [ -z "$best" ]; then
-    python3 - "$TMP" "$PREP" <<'EOF'
-import sys
-from PIL import Image, ImageOps, ImageFilter, ImageChops
-src, dst = sys.argv[1], sys.argv[2]
-img = Image.open(src).convert('L')
-w, h = img.size
-m = min(w, h)
-if m < 700:
-    scale = min(2.5, 1200.0 / m)
-    img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
-img = img.filter(ImageFilter.MedianFilter(3))
-img = ImageOps.autocontrast(img)
-blur = img.filter(ImageFilter.GaussianBlur(radius=6))
-dark = ImageChops.subtract(blur, img).point(lambda p: 0 if p < 20 else 255)
-light = ImageChops.subtract(img, blur).point(lambda p: 0 if p < 20 else 255)
-def ink(im): return im.histogram()[255]
-text = dark if ink(dark) >= ink(light) else light
-text.point(lambda p: 0 if p else 255).save(dst)
-EOF
-    for psm in 6 3; do
-        out="$(clean "$(ocr "$PREP" "$LANG_REQ" "$psm")")"
-        [ -n "$out" ] && { best="$out"; break; }
-    done
-fi
 
-if [ -z "$best" ]; then
-    notify "Tidak ada teks terdeteksi (lang: $LANG_REQ)"
-    rm -f "$TMP" "$PREP"
-    exit 1
-fi
+def get_tesseract_binary() -> str:
+    """Finds tesseract executable in system PATH."""
+    for binary in ["tesseract", "tesseract-ocr"]:
+        if shutil.which(binary):
+            return binary
+    return ""
 
-if [ -z "${DISPLAY:-}" ]; then
-    printf '%s\n' "$best"
-    rm -f "$TMP" "$PREP"
-    exit 0
-fi
 
-if ! printf '%s\n' "$best" | timeout 3 xclip -selection clipboard >/dev/null 2>&1; then
-    notify "Tidak bisa copy ke clipboard"
-fi
-preview="$(printf '%s\n' "$best" | head -c 160)"
-notify "Teks disalin ke clipboard (lang: $LANG_REQ)
+def get_available_languages(tesseract_bin: str) -> list[str]:
+    """Retrieves list of installed Tesseract language packs."""
+    try:
+        res = subprocess.run(
+            [tesseract_bin, "--list-langs"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True,
+        )
+        langs = [line.strip() for line in res.stdout.splitlines()[1:] if line.strip()]
+        return langs
+    except Exception:
+        return []
 
-$preview"
-rm -f "$TMP" "$PREP"
+
+def resolve_languages(requested_lang: str, available_langs: list[str]) -> Tuple[str, list[str]]:
+    """Resolves requested language string against installed Tesseract languages."""
+    if not available_langs:
+        return requested_lang or "ind", []
+
+    available_set = set(available_langs)
+
+    if not requested_lang or requested_lang == "auto":
+        target_list = list(DEFAULT_LANGUAGES)
+    else:
+        target_list = [l.strip() for l in requested_lang.split("+") if l.strip()]
+
+    valid_langs = [l for l in target_list if l in available_set]
+    missing_langs = [l for l in target_list if l not in available_set]
+
+    if valid_langs:
+        combined = "+".join(valid_langs)
+    else:
+        filtered = [l for l in available_langs if l not in ("osd", "equ")]
+        combined = filtered[0] if filtered else available_langs[0]
+
+    return combined, missing_langs
+
+
+def capture_screenshot_region(target_path: str) -> bool:
+    """Captures a user-selected screen region into target_path, with Wayland & X11 tool fallbacks."""
+    wayland = is_wayland()
+
+    if wayland:
+        if shutil.which("grim") and shutil.which("slurp"):
+            try:
+                slurp_res = subprocess.run(["slurp"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                region = slurp_res.stdout.strip()
+                if region:
+                    subprocess.run(["grim", "-g", region, target_path], check=True, stderr=subprocess.DEVNULL)
+                    return os.path.exists(target_path) and os.path.getsize(target_path) > 0
+            except Exception:
+                pass
+
+        if shutil.which("hyprshot"):
+            try:
+                subprocess.run(["hyprshot", "-m", "region", "-o", os.path.dirname(target_path), "-f", os.path.basename(target_path)], check=True, stderr=subprocess.DEVNULL)
+                return os.path.exists(target_path) and os.path.getsize(target_path) > 0
+            except Exception:
+                pass
+
+        if shutil.which("spectacle"):
+            try:
+                subprocess.run(["spectacle", "-r", "-b", "-o", target_path], check=True, stderr=subprocess.DEVNULL)
+                return os.path.exists(target_path) and os.path.getsize(target_path) > 0
+            except Exception:
+                pass
+
+        if shutil.which("gnome-screenshot"):
+            try:
+                subprocess.run(["gnome-screenshot", "-a", "-f", target_path], check=True, stderr=subprocess.DEVNULL)
+                return os.path.exists(target_path) and os.path.getsize(target_path) > 0
+            except Exception:
+                pass
+
+    if shutil.which("maim"):
+        try:
+            subprocess.run(["maim", "-s", target_path], check=True, stderr=subprocess.DEVNULL)
+            return os.path.exists(target_path) and os.path.getsize(target_path) > 0
+        except Exception:
+            pass
+
+    if shutil.which("xfce4-screenshooter"):
+        try:
+            subprocess.run(["xfce4-screenshooter", "--region", f"--save={target_path}"], check=True, stderr=subprocess.DEVNULL)
+            return os.path.exists(target_path) and os.path.getsize(target_path) > 0
+        except Exception:
+            pass
+
+    if shutil.which("scrot"):
+        try:
+            subprocess.run(["scrot", "-s", target_path], check=True, stderr=subprocess.DEVNULL)
+            return os.path.exists(target_path) and os.path.getsize(target_path) > 0
+        except Exception:
+            pass
+
+    if shutil.which("import"):  # ImageMagick
+        try:
+            subprocess.run(["import", target_path], check=True, stderr=subprocess.DEVNULL)
+            return os.path.exists(target_path) and os.path.getsize(target_path) > 0
+        except Exception:
+            pass
+
+    return False
+
+
+def copy_to_clipboard(text: str) -> bool:
+    """Copies text to clipboard using wl-copy, xclip, or xsel."""
+    wayland = is_wayland()
+
+    clipboard_commands = []
+    if wayland:
+        clipboard_commands = [
+            ["wl-copy"],
+            ["xclip", "-selection", "clipboard"],
+            ["xsel", "--clipboard", "--input"],
+        ]
+    else:
+        clipboard_commands = [
+            ["xclip", "-selection", "clipboard"],
+            ["xsel", "--clipboard", "--input"],
+            ["wl-copy"],
+        ]
+
+    for cmd in clipboard_commands:
+        if shutil.which(cmd[0]):
+            try:
+                proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                proc.communicate(input=text.encode("utf-8"), timeout=3)
+                if proc.returncode == 0:
+                    return True
+            except Exception:
+                continue
+
+    return False
+
+
+def preprocess_image_primary(src_path: str, dst_path: str) -> Tuple[bool, float, Tuple[int, int]]:
+    """Primary fast preprocessing: Grayscale, Smart Upscale (LANCZOS), Median Denoise, Autocontrast."""
+    if not HAS_PIL:
+        shutil.copyfile(src_path, dst_path)
+        return True, 1.0, (0, 0)
+
+    try:
+        img = Image.open(src_path)
+        orig_w, orig_h = img.size
+        img = img.convert("L")
+        m = min(orig_w, orig_h)
+        scale = 1.0
+
+        if m < 700 and m > 0:
+            scale = min(2.5, 1200.0 / m)
+            img = img.resize((int(orig_w * scale), int(orig_h * scale)), Image.LANCZOS)
+
+        if max(img.size) <= 2500:
+            img = img.filter(ImageFilter.MedianFilter(3))
+
+        img = ImageOps.autocontrast(img)
+        img.save(dst_path)
+        return True, scale, (orig_w, orig_h)
+    except Exception as e:
+        print(f"Error in primary preprocessing: {e}", file=sys.stderr)
+        return False, 1.0, (0, 0)
+
+
+def preprocess_image_fallback(src_path: str, dst_path: str) -> Tuple[bool, float, Tuple[int, int]]:
+    """Fallback adaptive binarization."""
+    if not HAS_PIL:
+        return False, 1.0, (0, 0)
+
+    try:
+        img = Image.open(src_path)
+        orig_w, orig_h = img.size
+        img = img.convert("L")
+        m = min(orig_w, orig_h)
+        scale = 1.0
+
+        if m < 700 and m > 0:
+            scale = min(2.5, 1200.0 / m)
+            img = img.resize((int(orig_w * scale), int(orig_h * scale)), Image.LANCZOS)
+
+        img = img.filter(ImageFilter.MedianFilter(3))
+        img = ImageOps.autocontrast(img)
+
+        blur = img.filter(ImageFilter.GaussianBlur(radius=6))
+        dark = ImageChops.subtract(blur, img).point(lambda p: 0 if p < 20 else 255)
+        light = ImageChops.subtract(img, blur).point(lambda p: 0 if p < 20 else 255)
+
+        def ink_density(im):
+            hist = im.histogram()
+            return hist[255] if len(hist) > 255 else 0
+
+        text = dark if ink_density(dark) >= ink_density(light) else light
+        text.point(lambda p: 0 if p else 255).save(dst_path)
+        return True, scale, (orig_w, orig_h)
+    except Exception as e:
+        print(f"Error in fallback preprocessing: {e}", file=sys.stderr)
+        return False, 1.0, (0, 0)
+
+
+def clean_text(raw_text: str) -> str:
+    """Cleans OCR output by trimming whitespace and blank lines."""
+    lines = [line.rstrip() for line in raw_text.splitlines()]
+    non_empty = [line for line in lines if line.strip()]
+    return "\n".join(non_empty).strip()
+
+
+def run_ocr_tsv(tesseract_bin: str, image_path: str, lang: str, psm: int, scale: float = 1.0) -> Tuple[str, List[Dict[str, Any]]]:
+    """Executes Tesseract OCR requesting TSV output to extract word bounding box coordinates."""
+    try:
+        cmd = [
+            tesseract_bin,
+            image_path,
+            "stdout",
+            "-l",
+            lang,
+            "--oem",
+            "1",
+            "--psm",
+            str(psm),
+            "tsv",
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, check=True)
+        
+        words: List[Dict[str, Any]] = []
+        full_text_words: List[str] = []
+
+        reader = csv.reader(res.stdout.splitlines(), delimiter="\t", quoting=csv.QUOTE_NONE)
+        header = next(reader, None)
+
+        if not header or len(header) < 12:
+            return "", []
+
+        for row in reader:
+            if len(row) < 12:
+                continue
+            
+            level = row[0]
+            block_num = int(row[2]) if row[2].isdigit() else 0
+            line_num = int(row[4]) if row[4].isdigit() else 0
+            left = int(row[6]) if row[6].isdigit() else 0
+            top = int(row[7]) if row[7].isdigit() else 0
+            width = int(row[8]) if row[8].isdigit() else 0
+            height = int(row[9]) if row[9].isdigit() else 0
+            conf = float(row[10]) if row[10].replace('.', '', 1).lstrip('-').isdigit() else 0.0
+            word_text = row[11].strip()
+
+            if level == "5" and word_text:
+                full_text_words.append(word_text)
+                
+                scaled_x = int(round(left / scale))
+                scaled_y = int(round(top / scale))
+                scaled_w = int(round(width / scale))
+                scaled_h = int(round(height / scale))
+
+                words.append({
+                    "text": word_text,
+                    "x": scaled_x,
+                    "y": scaled_y,
+                    "w": scaled_w,
+                    "h": scaled_h,
+                    "confidence": max(0.0, conf),
+                    "line_num": line_num,
+                    "block_num": block_num,
+                })
+
+        text_output = clean_text(" ".join(full_text_words))
+        return text_output, words
+    except Exception:
+        return "", []
+
+
+def perform_ocr_pipeline(tesseract_bin: str, tmp_path: str, prep_path: str, target_lang: str) -> Tuple[str, List[Dict[str, Any]], float, Tuple[int, int]]:
+    """Runs preprocessing and OCR TSV pipeline."""
+    success, scale, orig_dim = preprocess_image_primary(tmp_path, prep_path)
+    if not success:
+        return "", [], 1.0, (0, 0)
+
+    best_text = ""
+    best_words: List[Dict[str, Any]] = []
+
+    for psm in [6, 3, 11]:
+        text_out, words_out = run_ocr_tsv(tesseract_bin, prep_path, target_lang, psm, scale=scale)
+        if text_out:
+            best_text = text_out
+            best_words = words_out
+            break
+
+    if not best_text:
+        success_fb, scale_fb, orig_dim_fb = preprocess_image_fallback(tmp_path, prep_path)
+        if success_fb:
+            for psm in [6, 3]:
+                text_out, words_out = run_ocr_tsv(tesseract_bin, prep_path, target_lang, psm, scale=scale_fb)
+                if text_out:
+                    best_text = text_out
+                    best_words = words_out
+                    orig_dim = orig_dim_fb
+                    scale = scale_fb
+                    break
+
+    return best_text, best_words, scale, orig_dim
+
+
+def main():
+    parser = argparse.ArgumentParser(description="ocr-shot - Screenshot region OCR tool with Live Text Overlay")
+    parser.add_argument(
+        "lang",
+        nargs="?",
+        default=os.environ.get("OCR_LANG", "+".join(DEFAULT_LANGUAGES)),
+        help="Target OCR language(s) separated by + (default: ind+eng+ara)",
+    )
+    parser.add_argument("--json", action="store_true", help="Output OCR text and bounding box coordinates as JSON")
+    parser.add_argument("--gui", action="store_true", help="Force interactive GUI Live Text overlay mode")
+    parser.add_argument("--cli", action="store_true", help="Force non-interactive CLI mode")
+    args = parser.parse_args()
+
+    tesseract_bin = get_tesseract_binary()
+    if not tesseract_bin:
+        if args.json:
+            print(json.dumps({"error": "Tesseract binary not found"}))
+        else:
+            notify("Tesseract tidak ditemukan! Silakan install 'tesseract-ocr'.")
+        sys.exit(1)
+
+    available_langs = get_available_languages(tesseract_bin)
+    target_lang, missing_langs = resolve_languages(args.lang, available_langs)
+
+    if missing_langs and not args.json:
+        missing_str = ", ".join(missing_langs)
+        notify(f"Peringatan: Paket bahasa '{missing_str}' belum terinstall. Menggunakan '{target_lang}'.")
+
+    # Determine execution mode (GUI vs CLI)
+    use_gui = (HAS_GUI and not args.cli and not args.json and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")))
+    if args.gui and not HAS_GUI:
+        notify("Peringatan: Pustaka Qt (PyQt6/PySide6/PyQt5) tidak ditemukan. Berjalan dalam mode CLI.")
+        use_gui = False
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file, \
+         tempfile.NamedTemporaryFile(suffix=".png", delete=False) as prep_file:
+        tmp_path = tmp_file.name
+        prep_path = prep_file.name
+
+    try:
+        # Step 1: Capture screen region
+        if not capture_screenshot_region(tmp_path):
+            if args.json:
+                print(json.dumps({"error": "Capture cancelled or failed"}))
+            else:
+                notify("Capture dibatalkan atau gagal")
+            sys.exit(1)
+
+        # Step 2: Perform OCR pipeline
+        best_text, best_words, scale, orig_dim = perform_ocr_pipeline(tesseract_bin, tmp_path, prep_path, target_lang)
+
+        if not best_text:
+            if args.json:
+                print(json.dumps({"error": "No text detected", "language": target_lang, "words": []}))
+            else:
+                notify(f"Tidak ada teks terdeteksi (bahasa: {target_lang})")
+            sys.exit(1)
+
+        # JSON mode
+        if args.json:
+            json_result = {
+                "text": best_text,
+                "language": target_lang,
+                "missing_languages": missing_langs,
+                "image_size": {"width": orig_dim[0], "height": orig_dim[1]},
+                "scale_factor": scale,
+                "words_count": len(best_words),
+                "words": best_words,
+            }
+            print(json.dumps(json_result, indent=2, ensure_ascii=False))
+            sys.exit(0)
+
+        # GUI Mode (Interactive Live Text Overlay)
+        if use_gui:
+            ocr_payload = {
+                "text": best_text,
+                "language": target_lang,
+                "words": best_words,
+                "image_size": orig_dim,
+            }
+
+            def handle_copy(copied_text: str):
+                copy_to_clipboard(copied_text)
+                preview = copied_text[:160] + ("..." if len(copied_text) > 160 else "")
+                notify(f"Teks disalin ke clipboard ({target_lang}):\n\n{preview}")
+
+            def handle_lang_change(new_lang: str):
+                resolved, _ = resolve_languages(new_lang, available_langs)
+                new_text, new_words, _, _ = perform_ocr_pipeline(tesseract_bin, tmp_path, prep_path, resolved)
+                if new_text:
+                    ocr_payload["text"] = new_text
+                    ocr_payload["words"] = new_words
+                    ocr_payload["language"] = resolved
+
+            launched = launch_gui_overlay(
+                image_path=tmp_path,
+                ocr_data=ocr_payload,
+                on_copy_cb=handle_copy,
+                on_lang_change_cb=handle_lang_change,
+            )
+            if launched:
+                sys.exit(0)
+
+        # CLI Mode Fallback
+        if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+            print(best_text)
+            sys.exit(0)
+
+        if not copy_to_clipboard(best_text):
+            notify("Gagal menyalin teks ke clipboard")
+
+        preview = best_text[:160] + ("..." if len(best_text) > 160 else "")
+        notify(f"Teks disalin ke clipboard ({target_lang}):\n\n{preview}")
+
+    finally:
+        for path in (tmp_path, prep_path):
+            if os.path.exists(path):
+                try:
+                    os.unlink(path)
+                except Exception:
+                    pass
+
+
+if __name__ == "__main__":
+    main()

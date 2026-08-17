@@ -1,0 +1,17 @@
+# Template file for 'ocr-shot'
+pkgname=ocr-shot
+version=1.0.0
+revision=1
+archs=noarch
+depends="python3 python3-Pillow python3-PyQt6 tesseract tesseract-data-ind tesseract-data-eng tesseract-data-ara libnotify wl-clipboard xclip grim slurp maim"
+short_desc="Live Text OCR screenshot utility for Void Linux (Wayland & X11)"
+maintainer="Suyono <suyonosukorame@ymail.com>"
+license="MIT"
+homepage="https://github.com/Suyono-Sukorame/ocr-shot"
+
+do_install() {
+	vbin ocr-shot
+	vbin ocr_gui.py
+	vinstall ocr-shot.desktop 644 usr/share/applications
+	vlicense LICENSE
+}

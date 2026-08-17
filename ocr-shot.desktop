@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OCR Shot (Live Text)
+Comment=Capture screen region and extract text with interactive Live Text overlay
+Exec=ocr-shot
+Icon=accessories-screenshot
+Terminal=false
+Type=Application
+Categories=Utility;Graphics;
+Keywords=ocr;screenshot;livetext;tesseract;wayland;x11;
