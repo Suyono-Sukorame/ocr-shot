@@ -31,7 +31,7 @@ Built with **Python 3**, **PyQt6**, and **Tesseract OCR** with native support fo
 - ⚡ **Auto-Detect Display Server**: Full compatibility with **Wayland** (`grim` + `slurp`) and **X11** (`maim`, `xfce4-screenshooter`, `scrot`).
 - 💻 **CLI & JSON Export Modes**:
   - `--cli`: Fast non-GUI scan directly to clipboard.
-  - `--json`: Export full text and word bounding box coordinates $(x, y, w, h)$ in structured JSON format.
+  - `--json`: Export full text and word bounding box coordinates (x, y, w, h) in structured JSON format.
 
 ---
 
@@ -140,7 +140,7 @@ Register `ocr-shot` to a global keyboard shortcut in your Window Manager or Desk
   bindsym $mod+Shift+s exec ocr-shot
   ```
 - **XFCE / GNOME / KDE**:
-  Go to **Settings** $\rightarrow$ **Keyboard Shortcuts** $\rightarrow$ Add Custom Shortcut $\rightarrow$ Command: `ocr-shot` $\rightarrow$ Shortcut: `Super+Shift+S` or `Print`.
+  Go to **Settings** → **Keyboard Shortcuts** → Add Custom Shortcut → Command: `ocr-shot` → Shortcut: `Super+Shift+S` or `Print`.
 
 ---
 

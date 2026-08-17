@@ -1,0 +1,14 @@
+{
+  "files.associations": {
+    "ocr-shot": "python",
+    "template": "shellscript"
+  },
+  "python.analysis.ignore": [
+    "xbps/**",
+    "dist/**"
+  ],
+  "cSpell.enabled": false,
+  "cSpell.ignorePaths": [
+    "**/*"
+  ]
+}
